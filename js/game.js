@@ -17,7 +17,6 @@ game_queueData();
 //objects
 g_CAMERA = null;
 g_GAMEMANAGER = null;
-g_GAMEPAD = null;
 
 
 /* MAIN FUNCTIONS **************************************************************
@@ -67,17 +66,22 @@ function game_main() {
 	}
 	
 	// gamepad test
-	if (g_GAMEPAD) {
-		var buttons = g_GAMEPAD.buttons;
-		for (var i = 0; i < buttons.length; ++i) {
-			if (buttons[i].justPressed()) {
-				console.log("Button %d was pressed.", i);
+	if (g_GAMEPADMANAGER) {
+		var GPM = g_GAMEPADMANAGER;
+
+		for (var gamepad_index in GPM.gamepads) {
+			for (var i = 0; i < GPM.getNumButtons(gamepad_index); ++i) {
+				if (GPM.buttonJustPressed(gamepad_index, i)) {
+					var value = GPM.buttonValue(gamepad_index, i);
+					console.log("[Gamepad %s] Button %d pressed. (%f)", gamepad_index, i, value);
+				}
 			}
-		}
-		var axes = g_GAMEPAD.axes;
-		for (var i = 0; i < axes.length; ++i) {
-			if (axes[i].dx != 0) {
-				console.log("Axis %d changed by %f.", i, axes[i].dx);
+			for (var i = 0; i < GPM.getNumAxes(gamepad_index); ++i) {
+				var change = GPM.axisValueChange(gamepad_index, i);
+				if (Math.abs(change) > 0.15) {
+					var value = GPM.axisValue(gamepad_index, i);
+					console.log("[Gamepad %s] Axis %d changed by %f. (%s)", gamepad_index, i, change, value);
+				}
 			}
 		}
 	}
@@ -90,7 +94,6 @@ function game_init() {
 	if(g_SCREEN.init('screen', 320, 200)) {
 		g_CAMERA = new Camera(0, 0);
 		g_GAMEMANAGER = new GameManager();
-		g_GAMEPAD = g_GAMEPADMANAGER.getGamepad(0);
 	}
 }
 

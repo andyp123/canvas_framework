@@ -79,6 +79,9 @@ function sys_init() {
 	g_INIT_SUB();
 	
 	//start main function running (uses anonymous function to avoid immediate execution)
+	//setInterval used because it's easier to set a desired framerate
+	//Using window.requestAnimationFrame requires frametime calculation per frame, which suggests
+	//only variable framerates are supported
 	sys_UPDATE_INTERVAL_ID = setInterval(function() { sys_main(); }, g_FRAMETIME_MS);
 }
 
@@ -325,6 +328,13 @@ KeyStates.prototype.toString = function() {
 	return rv;
 }
 
+/* AXIS STATE *****************************************************************
+*/
+function AxisState() {
+	this.value = 0.0;
+	this.dx = 0.0;
+}
+
 /* GAMEPAD MANAGER ************************************************************
 manages multiple gamepads
 */
@@ -333,6 +343,7 @@ function GamepadManager() {
 	this.findGamepads();
 }
 
+//shouldn't hold as reference, but instead get each frame in case the gamepad is disconnected
 GamepadManager.prototype.getGamepad = function(index) {
 	var gamepad = this.gamepads[index];
 	if (gamepad !== undefined) {
@@ -342,12 +353,107 @@ GamepadManager.prototype.getGamepad = function(index) {
 	}
 }
 
+//allow indirect interaction via manager --------------------------------------
+
+GamepadManager.prototype.isConnected = function(index) {
+	return (this.gamepads[index] !== undefined);
+}
+
+GamepadManager.prototype.getNumButtons = function(gamepad_index) {
+	if (this.gamepads[gamepad_index] !== undefined) {
+		return this.gamepads[gamepad_index].buttons.length;
+	}
+	return 0;
+}
+
+GamepadManager.prototype.getNumAxes = function(gamepad_index) {
+	if (this.gamepads[gamepad_index] !== undefined) {
+		return this.gamepads[gamepad_index].axes.length;
+	}
+	return 0;
+}
+
+GamepadManager.prototype.buttonIsPressed = function(gamepad_index, button_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && button_index <= gamepad.buttons.length) {
+		return gamepad.buttons[button_index].isPressed();
+	}
+	return false;
+}
+
+GamepadManager.prototype.buttonJustPressed = function(gamepad_index, button_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && button_index <= gamepad.buttons.length) {
+		return gamepad.buttons[button_index].justPressed();
+	}
+	return false;
+}
+
+GamepadManager.prototype.buttonJustReleased = function(gamepad_index, button_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && button_index <= gamepad.buttons.length) {
+		return gamepad.buttons[button_index].justReleased();
+	}
+	return false;
+}
+
+GamepadManager.prototype.buttonJustReleasedAfterHeldFor = function(gamepad_index, button_index, time) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && button_index <= gamepad.buttons.length) {
+		return gamepad.buttons[button_index].justReleasedAfterHeldFor(time);
+	}
+	return false;
+}
+
+GamepadManager.prototype.buttonDuration = function(gamepad_index, button_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && button_index <= gamepad.buttons.length) {
+		return gamepad.buttons[button_index].duration();
+	}
+	return 0.0;
+}
+
+GamepadManager.prototype.buttonValue = function(gamepad_index, button_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && button_index <= gamepad.buttons.length) {
+		return gamepad.buttons[button_index].value;
+	}
+	return 0.0;	
+}
+
+GamepadManager.prototype.buttonValueChange = function(gamepad_index, button_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && button_index <= gamepad.buttons.length) {
+		return gamepad.buttons[button_index].dx;
+	}
+	return 0.0;	
+}
+
+GamepadManager.prototype.axisValue = function(gamepad_index, axis_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && axis_index <= gamepad.axes.length) {
+		return gamepad.axes[axis_index].value;
+	}
+	return 0.0;	
+}
+
+GamepadManager.prototype.axisValueChange = function(gamepad_index, axis_index) {
+	var gamepad = this.gamepads[gamepad_index];
+	if (gamepad !== undefined && axis_index <= gamepad.axes.length) {
+		return gamepad.axes[axis_index].dx;
+	}
+	return 0.0;	
+}
+
+// ----------------------------------------------------------------------------
+
 GamepadManager.prototype.update = function() {
 	// update gamepad objects (seems to be required in Chrome, but not Firefox...)
 	var gamepads = (navigator.getGamepads) ? navigator.getGamepads() : [];
 	for (var i = 0; i < gamepads.length; ++i) {
 		var gamepad = gamepads[i];
-		if (gamepad !== undefined) { //weird implementation requires this
+		if (gamepad !== undefined) {
+			//implementation requires this, since the gamepads are a fixed array that can have empty indices
 			if (this.gamepads[gamepad.index] !== undefined) {
 				this.gamepads[gamepad.index].gamepad = gamepad;
 			}
@@ -388,13 +494,6 @@ GamepadManager.prototype.removeGamepad = function(gamepad) {
 	} else {
 		alert("ERROR: No gamepad connected at index " + gamepad.index + ". Cannot remove.");
 	}
-}
-
-/* AXIS STATE *****************************************************************
-*/
-function AxisState() {
-	this.value = 0.0;
-	this.dx = 0.0;
 }
 
 /* GAMEPAD *********************************************************************
