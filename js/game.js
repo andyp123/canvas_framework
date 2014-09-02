@@ -17,6 +17,7 @@ game_queueData();
 //objects
 g_CAMERA = null;
 g_GAMEMANAGER = null;
+g_GAMEPAD = null;
 
 
 /* MAIN FUNCTIONS **************************************************************
@@ -50,6 +51,9 @@ function game_draw(ctx, xofs, yofs) {
 function game_main() {
 	if (g_KEYSTATES.isPressed( KEYS.SHIFT ) && g_KEYSTATES.justPressed( KEYS.D ) ) { //d for debug
 		g_DEBUG = !g_DEBUG;
+		if (!g_DEBUG) {
+			document.getElementById('keystates').innerHTML = "";
+		}
 	}
 	if (g_DEBUG) {
 		document.getElementById('keystates').innerHTML = g_MOUSE.toString() + "<br>" + g_KEYSTATES.toString() + "<br><b>Camera</b><br>" + g_CAMERA.toString();
@@ -61,6 +65,22 @@ function game_main() {
 			g_CAMERA.pos.set(0, 0);
 		}
 	}
+	
+	// gamepad test
+	if (g_GAMEPAD) {
+		var buttons = g_GAMEPAD.buttons;
+		for (var i = 0; i < buttons.length; ++i) {
+			if (buttons[i].justPressed()) {
+				console.log("Button %d was pressed.", i);
+			}
+		}
+		var axes = g_GAMEPAD.axes;
+		for (var i = 0; i < axes.length; ++i) {
+			if (axes[i].dx != 0) {
+				console.log("Axis %d changed by %f.", i, axes[i].dx);
+			}
+		}
+	}
 
 	game_update();
 	game_draw(g_SCREEN.context, 0, 0);
@@ -70,6 +90,7 @@ function game_init() {
 	if(g_SCREEN.init('screen', 320, 200)) {
 		g_CAMERA = new Camera(0, 0);
 		g_GAMEMANAGER = new GameManager();
+		g_GAMEPAD = g_GAMEPADMANAGER.getGamepad(0);
 	}
 }
 

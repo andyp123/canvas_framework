@@ -8,7 +8,7 @@ classes may no longer work as intended.
 TODO:
 +disable certain browser behaviour that causes problems for games
 +timer, pause/unpause game support
- -g_GAMETIME_MS etc should become the game timer (pauseable
+ -g_GAMETIME_MS etc should become the game timer (pauseable)
  -sys_TIME_MS should be the system timer used for menus (not pauseable)
  -alternatively a timer class should be made
 +loading bar during data load
@@ -17,26 +17,29 @@ TODO:
 */
 
 //objects in global namespace
-var g_KEYSTATES = new KeyStates();
-var g_MOUSE = new Mouse();
-var g_SCREEN = new Screen(true);
-var g_RENDERLIST = new RenderList();
-var g_ASSETMANAGER = new AssetManager();
-var g_SOUNDMANAGER = new SoundManager();
+g_KEYSTATES = null;
+g_MOUSE = null;
+g_GAMEPADMANAGER = null;
+g_SCREEN = null;
+g_RENDERLIST = null;
+
+// need to exist for queuing data
+g_ASSETMANAGER = new AssetManager();
+g_SOUNDMANAGER = new SoundManager();
 
 //global variables
-var g_FRAMERATE = 60;
-var g_FRAMETIME_MS = Math.ceil(1000.0 / g_FRAMERATE);
-var g_FRAMETIME_S = 1.0 / g_FRAMERATE;
-var g_GAMETIME_MS = Math.ceil(1000.0 / g_FRAMERATE);
-var g_GAMETIME_FRAMES = 0;
+g_FRAMERATE = 60;
+g_FRAMETIME_MS = Math.ceil(1000.0 / g_FRAMERATE);
+g_FRAMETIME_S = 1.0 / g_FRAMERATE;
+g_GAMETIME_MS = Math.ceil(1000.0 / g_FRAMERATE);
+g_GAMETIME_FRAMES = 0;
 
-var g_INIT_SUB = null; //user init func
-var g_MAIN_SUB = null;
+g_INIT_SUB = null; //user init func
+g_MAIN_SUB = null;
 
-var sys_UPDATE_INTERVAL_ID = -1;
+sys_UPDATE_INTERVAL_ID = -1;
 
-var g_DEBUG = false;
+g_DEBUG = false;
 
 
 /* SYS_STARTUP *****************************************************************
@@ -48,6 +51,13 @@ user having to do any extra work.
 <body onload='sys_startup(myInit, myMain, 60'><!--STUFF--></body>
 */
 function sys_startup(initFunc, mainFunc, framerate) {
+	// init core classes
+	g_KEYSTATES = new KeyStates();
+	g_MOUSE = new Mouse();
+	g_GAMEPADMANAGER = new GamepadManager();
+	g_SCREEN = new Screen(true);
+	g_RENDERLIST = new RenderList();
+
 	//set framerate
 	g_FRAMERATE = framerate;
 	g_FRAMETIME_MS = Math.ceil(1000 / g_FRAMERATE);
@@ -78,6 +88,9 @@ function sys_main() {
 	g_GAMETIME_FRAMES++;
 	g_MOUSE.dx = g_MOUSE.dx - g_MOUSE.x;
 	g_MOUSE.dy = g_MOUSE.dy - g_MOUSE.y;
+
+	//update gamepads (not event based like keys, mouse and touch)
+	g_GAMEPADMANAGER.update();
 	
 	//call users main function
 	g_MAIN_SUB();
@@ -197,16 +210,9 @@ Screen.prototype.setSize = function(width, height) {
 }
 
 
-/* KEYBOARD STATES *************************************************************
-a place to store the state of all keys and the time they were pressed or released
-
-javascript character codes
-13 - ENTER
-27 - ESCAPE
-32 - SPACE (ascii)
-37-40 - LEFT,UP,RIGHT,DOWN
-48-57 - 0-9 (ascii)
-65-90 - A-Z (ascii)
+/* BUTTON STATE ***************************************************************
+generic button class that stores various attributes for conveniently checking
+the state of a button or key at any point in the code.
 */
 function ButtonState() {
 	this.state = false;	//true/false = pressed/released
@@ -249,7 +255,17 @@ ButtonState.prototype.duration = function() {
 	return g_GAMETIME_MS - this.time;
 }
 
+/* KEYBOARD STATES *************************************************************
+a place to store the state of all keys and the time they were pressed or released
 
+javascript character codes
+13 - ENTER
+27 - ESCAPE
+32 - SPACE (ascii)
+37-40 - LEFT,UP,RIGHT,DOWN
+48-57 - 0-9 (ascii)
+65-90 - A-Z (ascii)
+*/
 function KeyStates() {
 	this.states = new Array(256);
 	this.anyKeyJustPressed = false;
@@ -309,6 +325,150 @@ KeyStates.prototype.toString = function() {
 	return rv;
 }
 
+/* GAMEPAD MANAGER ************************************************************
+manages multiple gamepads
+*/
+function GamepadManager() {
+	this.gamepads = {};
+	this.findGamepads();
+}
+
+GamepadManager.prototype.getGamepad = function(index) {
+	var gamepad = this.gamepads[index];
+	if (gamepad !== undefined) {
+		return gamepad;
+	} else {
+		console.log("WARNING: No gamepad connected at index " + index);
+	}
+}
+
+GamepadManager.prototype.update = function() {
+	// update gamepad objects (seems to be required in Chrome, but not Firefox...)
+	var gamepads = (navigator.getGamepads) ? navigator.getGamepads() : [];
+	for (var i = 0; i < gamepads.length; ++i) {
+		var gamepad = gamepads[i];
+		if (gamepad !== undefined) { //weird implementation requires this
+			if (this.gamepads[gamepad.index] !== undefined) {
+				this.gamepads[gamepad.index].gamepad = gamepad;
+			}
+		}
+	}
+
+	for (var index in this.gamepads) {
+		var gamepad = this.gamepads[index];
+		gamepad.update();
+		//console.log(gamepad.toString());
+	}
+}
+
+GamepadManager.prototype.findGamepads = function() {
+	var gamepads = (navigator.getGamepads) ? navigator.getGamepads() : [];
+	for (var i = 0; i < gamepads.length; ++i) {
+		var gamepad = gamepads[i];
+		if (gamepad) {
+			this.addGamepad(gamepad);
+		}
+	}
+}
+
+GamepadManager.prototype.addGamepad = function(gamepad) {
+	if (!this.gamepads[gamepad.index]) {
+		console.log("gamepad connected to index " + gamepad.index + " (" + gamepad.id + ").");
+		this.gamepads[gamepad.index] = new Gamepad(gamepad);
+	} else {
+		alert("ERROR: Gamepad already connected at index " + gamepad.index);
+	}
+}
+
+GamepadManager.prototype.removeGamepad = function(gamepad) {
+	if (this.gamepads[gamepad.index]) {
+		this.gamepads[gamepad.index].connected = false; //anything holding a reference can check this
+		delete this.gamepads[gamepad.index];
+		console.log("gamepad disconnected from index " + gamepad.index + ".");
+	} else {
+		alert("ERROR: No gamepad connected at index " + gamepad.index + ". Cannot remove.");
+	}
+}
+
+/* AXIS STATE *****************************************************************
+*/
+function AxisState() {
+	this.value = 0.0;
+	this.dx = 0.0;
+}
+
+/* GAMEPAD *********************************************************************
+simple container for gamepad input
+*/
+function Gamepad(gamepad) {
+	this.gamepad = gamepad; //gamepad api gamepad object
+	this.connected = false;
+	if (gamepad) {
+		this.buttons = [];
+		for (var i = 0; i < gamepad.buttons.length; ++i) {
+			var b = new ButtonState();
+			b.value = 0.0;
+			b.dx = 0.0;
+			this.buttons[i] = b;
+		}
+		this.axes = [];
+		for (var i = 0; i < gamepad.axes.length; ++i) {
+			this.axes[i] = new AxisState();
+		}
+		this.connected = true;
+	} else {
+		alert("ERROR: Gamepad object is undefined.");
+	}
+}
+
+Gamepad.prototype.getIndex = function() {
+	return this.gamepad.index;
+}
+
+Gamepad.prototype.getId = function() {
+	return this.gamepad.id;
+}
+
+Gamepad.prototype.getNumButtons = function() {
+	return this.buttons.length;
+}
+
+Gamepad.prototype.getNumAxes = function() {
+	return this.axes.length;
+}
+
+Gamepad.prototype.update = function() {
+	var gamepad = this.gamepad;
+	for (var i = 0; i < gamepad.buttons.length; ++i) {
+		var gpb = gamepad.buttons[i];
+		var b = this.buttons[i];
+		if (gpb.pressed != b.isPressed) {
+			if (gpb.pressed) b.press();
+			else b.release(); 
+		}
+		b.dx = gpb.value - b.value;
+		b.value = gpb.value;
+	}
+	for (var i = 0; i < gamepad.axes.length; ++i) {
+		var gpa = gamepad.axes[i];
+		var a = this.axes[i];
+		a.dx = gpa.toFixed(4) - a.value;
+		a.value = gpa.toFixed(4);
+	}
+}
+
+Gamepad.prototype.toString = function() {
+	var rv = "[" + this.gamepad.index + "] " + this.gamepad.id + " \nbuttons: ";
+	for (var i = 0; i < this.buttons.length; ++i) {
+		rv += "[" + i + "|" + this.buttons[i].value + "]";
+	}
+	rv += "\naxes: ";
+	for (var i = 0; i < this.axes.length; ++i) {
+		rv += "[" + i + "] " + this.axes[i].value + " ";
+	}
+	return rv;
+}
+
 
 /* MOUSE ***********************************************************************
 simple container for mouse input
@@ -351,6 +511,14 @@ Change these only if neccessary
 TODO:
 +use addEventListener to move these into the relevant classes if possible
 */
+
+window.addEventListener("gamepadconnected", function(e) {
+	g_GAMEPADMANAGER.addGamepad(e.gamepad);
+}, false);
+window.addEventListener("gamepaddisconnected", function(e) {
+	g_GAMEPADMANAGER.removeGamepad(e.gamepad);
+}, false);
+
 document.onkeydown = function(e) {
 	g_KEYSTATES.anyKeyJustPressed = true;
     g_KEYSTATES.states[e.keyCode].press();
