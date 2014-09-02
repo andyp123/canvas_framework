@@ -481,8 +481,6 @@ GamepadManager.prototype.addGamepad = function(gamepad) {
 	if (!this.gamepads[gamepad.index]) {
 		console.log("gamepad connected to index " + gamepad.index + " (" + gamepad.id + ").");
 		this.gamepads[gamepad.index] = new Gamepad(gamepad);
-	} else {
-		alert("ERROR: Gamepad already connected at index " + gamepad.index);
 	}
 }
 
@@ -491,8 +489,6 @@ GamepadManager.prototype.removeGamepad = function(gamepad) {
 		this.gamepads[gamepad.index].connected = false; //anything holding a reference can check this
 		delete this.gamepads[gamepad.index];
 		console.log("gamepad disconnected from index " + gamepad.index + ".");
-	} else {
-		alert("ERROR: No gamepad connected at index " + gamepad.index + ". Cannot remove.");
 	}
 }
 
