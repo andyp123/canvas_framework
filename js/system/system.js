@@ -462,8 +462,13 @@ GamepadManager.prototype.update = function() {
 
 	for (var index in this.gamepads) {
 		var gamepad = this.gamepads[index];
-		gamepad.update();
-		//console.log(gamepad.toString());
+		if (gamepad.connected) {
+			gamepad.update();
+			// if (gamepad.stateChanged) {
+			// 	console.log(gamepad.toString());
+			// }
+		}
+
 	}
 }
 
@@ -497,16 +502,19 @@ simple container for gamepad input
 */
 function Gamepad(gamepad) {
 	this.gamepad = gamepad; //gamepad api gamepad object
+	this.buttons = [];
+	this.axes = [];
+	this.deadzone = 0.15;
 	this.connected = false;
+	this.stateChanged = false; //true if any button or axis value changes
+
 	if (gamepad) {
-		this.buttons = [];
 		for (var i = 0; i < gamepad.buttons.length; ++i) {
 			var b = new ButtonState();
 			b.value = 0.0;
 			b.dx = 0.0;
 			this.buttons[i] = b;
 		}
-		this.axes = [];
 		for (var i = 0; i < gamepad.axes.length; ++i) {
 			this.axes[i] = new AxisState();
 		}
@@ -534,32 +542,45 @@ Gamepad.prototype.getNumAxes = function() {
 
 Gamepad.prototype.update = function() {
 	var gamepad = this.gamepad;
+	if (!gamepad) return;
+
+	this.stateChanged = false;
 	for (var i = 0; i < gamepad.buttons.length; ++i) {
 		var gpb = gamepad.buttons[i];
 		var b = this.buttons[i];
+		var bPrevValue = b.value;
 		if (gpb.pressed != b.isPressed) {
 			if (gpb.pressed) b.press();
-			else b.release(); 
+			else b.release();
 		}
 		b.dx = gpb.value - b.value;
 		b.value = gpb.value;
+		if (b.value != bPrevValue) {
+			this.stateChanged = true;
+		}
 	}
 	for (var i = 0; i < gamepad.axes.length; ++i) {
 		var gpa = gamepad.axes[i];
+		gpa = Util.clampScaled(Math.abs(gpa), this.deadzone, 1.0) * Math.sign(gpa);
+		gpa = gpa.toFixed(4);
 		var a = this.axes[i];
-		a.dx = gpa.toFixed(4) - a.value;
-		a.value = gpa.toFixed(4);
+		var aPrevValue = a.value;
+		a.dx = gpa - a.value;
+		a.value = gpa;
+		if (a.value != aPrevValue) {
+			this.stateChanged = true;
+		}
 	}
 }
 
 Gamepad.prototype.toString = function() {
 	var rv = "[" + this.gamepad.index + "] " + this.gamepad.id + " \nbuttons: ";
 	for (var i = 0; i < this.buttons.length; ++i) {
-		rv += "[" + i + "|" + this.buttons[i].value + "]";
+		rv += i + ":" + this.buttons[i].value + " ";
 	}
 	rv += "\naxes: ";
 	for (var i = 0; i < this.axes.length; ++i) {
-		rv += "[" + i + "] " + this.axes[i].value + " ";
+		rv += i + ":" + this.axes[i].value + " ";
 	}
 	return rv;
 }
@@ -660,13 +681,13 @@ document.onmousemove = function(e) {
 
 //clear event states when the window loses focus
 window.onblur = function() {
-	g_KEYSTATES.releaseAll();
-	g_MOUSE.releaseAll();
+	if (g_KEYSTATES) g_KEYSTATES.releaseAll();
+	if (g_MOUSE) g_MOUSE.releaseAll();
 }
 
 window.onfocus = function() {
-	g_KEYSTATES.releaseAll();
-	g_MOUSE.releaseAll();
+	if (g_KEYSTATES) g_KEYSTATES.releaseAll();
+	if (g_MOUSE) g_MOUSE.releaseAll();
 }
 
 //prevent text being selected and breaking shit (only supported in some browsers)
