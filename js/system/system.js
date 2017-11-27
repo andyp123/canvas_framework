@@ -452,7 +452,7 @@ GamepadManager.prototype.update = function() {
 	var gamepads = (navigator.getGamepads) ? navigator.getGamepads() : [];
 	for (var i = 0; i < gamepads.length; ++i) {
 		var gamepad = gamepads[i];
-		if (gamepad !== undefined) {
+		if (gamepad !== undefined && gamepad != null) {
 			//implementation requires this, since the gamepads are a fixed array that can have empty indices
 			if (this.gamepads[gamepad.index] !== undefined) {
 				this.gamepads[gamepad.index].gamepad = gamepad;
